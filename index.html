@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Visualizer by Mr Oza </title>
+    <style>
+        /* Basic Reset & Body Styling */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* Header */
+        h1 { margin-bottom: 10px; color: #333; }
+        p { margin-bottom: 20px; color: #666; text-align: center; max-width: 600px; }
+
+        /* Controls Container */
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 200px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        #addBtn { background-color: #4CAF50; color: white; }
+        #addBtn:hover { background-color: #45a049; }
+
+        #resetBtn { background-color: #f44336; color: white; }
+        #resetBtn:hover { background-color: #d32f2f; }
+
+        /* Blockchain Container */
+        .chain-container {
+            display: flex;
+            flex-direction: column; /* Vertical on small screens, row on large */
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+            overflow-x: auto;
+            padding: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .chain-container {
+                flex-direction: row;
+                align-items: flex-start;
+                justify-content: flex-start;
+            }
+        }
+
+        /* Individual Block Styling */
+        .block {
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            width: 220px;
+            padding: 15px;
+            position: relative;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        /* The Link (Chain) connecting blocks */
+        .block:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            background: #bbb;
+        }
+
+        /* Desktop Horizontal Lines */
+        @media (min-width: 768px) {
+            .block:not(:last-child)::after {
+                width: 20px;
+                height: 4px;
+                top: 50%;
+                right: -24px;
+                transform: translateY(-50%);
+            }
+        }
+
+        /* Mobile Vertical Lines */
+        @media (max-width: 767px) {
+            .block:not(:last-child)::after {
+                width: 4px;
+                height: 20px;
+                bottom: -24px;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+        }
+
+        /* Valid vs Invalid States */
+        .block.valid { border-color: #4CAF50; background-color: #e8f5e9; }
+        .block.invalid { border-color: #f44336; background-color: #ffebee; }
+
+        /* Block Content */
+        .block-header {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .block-label { font-size: 0.8em; color: #888; margin-top: 8px; }
+        .block-hash { 
+            font-family: monospace; 
+            font-size: 0.85em; 
+            word-break: break-all; 
+            background: rgba(0,0,0,0.05);
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .data-input {
+            width: 100%;
+            margin-top: 5px;
+            padding: 5px;
+            font-size: 0.9em;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+
+        /* Genesis Block Badge */
+        .genesis-badge {
+            background: #2196F3;
+            color: white;
+            font-size: 0.7em;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        /* Animation */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .new-block { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+    </style>
+</head>
+<body>
+
+    <h1>Blockchain Demo</h1>
+    <p>Add blocks to the chain. Try changing the "Data" in a previous block to see how it breaks the chain (turns red) because the hashes no longer match!</p>
+
+    <div class="controls">
+        <input type="text" id="blockData" placeholder="Enter Transaction Data..." value="10 BTC to Alice">
+        <button id="addBtn" onclick="addBlock()">+ Mine Block</button>
+        <button id="resetBtn" onclick="resetChain()">Reset Chain</button>
+    </div>
+
+    <div class="chain-container" id="chain">
+        <!-- Blocks will be inserted here by JS -->
+    </div>
+
+    <script>
+        // Simple Hashing Function (SHA-256 simulation for demo purposes)
+        // In a real blockchain, this would be actual SHA-256 logic.
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex.substring(0, 10); // Shorten for UI readability
+        }
+
+        let blockchain = [];
+
+        class Block {
+            constructor(index, timestamp, data, previousHash = '') {
+                this.index = index;
+                this.timestamp = timestamp;
+                this.data = data;
+                this.previousHash = previousHash;
+                this.hash = '';
+                this.nonce = 0;
+            }
+
+            async calculateHash() {
+                return await sha256(this.index + this.previousHash + this.timestamp + JSON.stringify(this.data) + this.nonce);
+            }
+        }
+
+        // Initialize Chain
+        async function init() {
+            blockchain = [];
+            const genesisBlock = new Block(0, new Date().toLocaleTimeString(), "Genesis Block", "0");
+            genesisBlock.hash = await genesisBlock.calculateHash();
+            blockchain.push(genesisBlock);
+            renderChain();
+        }
+
+        // Add new block
+        async function addBlock() {
+            const dataInput = document.getElementById('blockData');
+            const data = dataInput.value || "No Data";
+            
+            const prevBlock = blockchain[blockchain.length - 1];
+            const newBlock = new Block(blockchain.length, new Date().toLocaleTimeString(), data, prevBlock.hash);
+            
+            // Simple "Mining" simulation (usually takes computational effort)
+            newBlock.hash = await newBlock.calculateHash();
+            
+            blockchain.push(newBlock);
+            dataInput.value = ""; // Clear input
+            await renderChain();
+            
+            // Scroll to right
+            const container = document.getElementById('chain');
+            container.scrollLeft = container.scrollWidth;
+        }
+
+        // Reset
+        function resetChain() {
+            init();
+        }
+
+        // Validate Chain Logic
+        async function isChainValid() {
+            for (let i = 1; i < blockchain.length; i++) {
+                const currentBlock = blockchain[i];
+                const prevBlock = blockchain[i - 1];
+
+                // 1. Recalculate hash to see if data changed
+                const recalculatedHash = await currentBlock.calculateHash();
+                if (currentBlock.hash !== recalculatedHash) {
+                    return i; // Chain broken at index i
+                }
+
+                // 2. Check if previous hash link is valid
+                if (currentBlock.previousHash !== prevBlock.hash) {
+                    return i; // Chain broken at index i
+                }
+            }
+            return -1; // Valid
+        }
+
+        // Render UI
+        async function renderChain() {
+            const container = document.getElementById('chain');
+            container.innerHTML = '';
+
+            // Check validity to color blocks
+            let brokenIndex = -1;
+            
+            // We need to re-verify validity on every render in case user edited data
+            for (let i = 1; i < blockchain.length; i++) {
+                const current = blockchain[i];
+                const prev = blockchain[i-1];
+                const realHash = await current.calculateHash();
+                
+                if (current.hash !== realHash || current.previousHash !== prev.hash) {
+                    brokenIndex = i;
+                    break;
+                }
+            }
+
+            blockchain.forEach((block, index) => {
+                const blockEl = document.createElement('div');
+                
+                // Determine Class (Valid/Invalid)
+                // If the chain is broken at index 2, then block 2 and all subsequent blocks are invalid
+                let statusClass = 'valid';
+                if (brokenIndex !== -1 && index >= brokenIndex) {
+                    statusClass = 'invalid';
+                }
+
+                blockEl.className = `block ${statusClass} new-block`;
+                
+                // Remove animation class after playing so it doesn't re-animate on updates
+                setTimeout(() => blockEl.classList.remove('new-block'), 500);
+
+                blockEl.innerHTML = `
+                    <div class="block-header">
+                        <span>Block #${block.index}</span>
+                        ${index === 0 ? '<span class="genesis-badge">GENESIS</span>' : ''}
+                    </div>
+                    <div class="block-label">DATA</div>
+                    <input class="data-input" value="${block.data}" oninput="updateData(${index}, this.value)">
+                    
+                    <div class="block-label">PREV HASH</div>
+                    <div class="block-hash" style="color: #666">${block.previousHash.substring(0, 8)}...</div>
+                    
+                    <div class="block-label">HASH</div>
+                    <div class="block-hash">${block.hash.substring(0, 8)}...</div>
+                `;
+                container.appendChild(blockEl);
+            });
+        }
+
+        // Handle Data Tampering
+        async function updateData(index, newData) {
+            blockchain[index].data = newData;
+            // Note: We do NOT recalculate the hash here intentionally.
+            // This simulates a hacker changing data without being able to re-mine the whole chain instantly.
+            // This mismatch between the old hash and the new data is what breaks the chain visually.
+            renderChain();
+        }
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>
